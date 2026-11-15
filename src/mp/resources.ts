@@ -67,7 +67,7 @@ export const events: VgiFunction = defineExportFunction({
     "Every raw event of the Mixpanel project from the Raw Event Export API, one row per event: event_name, " +
     "event_time (UTC), distinct_id, insert_id, device_id, user_id, os, browser, device, city, region, " +
     "country_code, current_url, app_version, lib, lib_version, processing_time and the full properties JSON " +
-    "(read others with properties->>'$browser_version'). Choose the days with WHERE event_time >= / < ... " +
+    "(read others with properties->>'$.\"$browser_version\"'). Choose the days with WHERE event_time >= / < ... " +
     "(pushed down) or from_date := / to_date := ('YYYY-MM-DD'); with neither it reads the last lookback_days " +
     "(7). WHERE event_name = / IN and string = / IN on distinct_id, insert_id, device_id, user_id, os, " +
     "browser, city, region, country_code, app_version and lib are filtered by Mixpanel; where_expr := sends " +
@@ -133,7 +133,7 @@ export const segmentation: VgiFunction = defineMpTable<SegArgs>({
   docLlm:
     "Mixpanel segmentation (Insights) report as long rows: event, segment (the property value when " +
     "segment_by is set, else NULL), period (Mixpanel's bucket label), period_start (the bucket start as a " +
-    "project-local TIMESTAMP) and value. Arguments: event (one event name), from_date, to_date " +
+    "project-local `TIMESTAMP`) and value. Arguments: event (one event name), from_date, to_date " +
     "('YYYY-MM-DD', inclusive), segment_by := a property expression such as 'properties[\"$os\"]', " +
     "where_expr := a filter expression, unit := minute/hour/day/week/month (default day), count_type := " +
     "general (all events), unique (unique users) or average (default general), segment_limit := top N " +
@@ -225,7 +225,10 @@ export const funnelsList: TableDescriptor = defineMpCatalogTable(
       "Every saved funnel of the project: funnel_id (pass to mixpanel.main.funnel) and name. One Query API " +
       "call (/api/query/funnels/list).",
     docMd: "## funnels\n\nSaved funnels: `funnel_id`, `name`.",
-    columns: [C.big("funnel_id", "Funnel id.", "funnel_id", false), C.str("name", "Funnel name.", "name")],
+    columns: [
+      C.big("funnel_id", "Numeric saved-funnel identifier; pass it to funnel().", "funnel_id", false),
+      C.str("name", "Funnel name as shown in Mixpanel.", "name"),
+    ],
     requests: () => [{ family: "query", path: "/api/query/funnels/list" }],
     examples: [{ sql: `SELECT funnel_id, name FROM ${M}.funnels ORDER BY name`, description: "Saved funnels" }],
   },
@@ -264,7 +267,7 @@ export const funnel: VgiFunction = defineMpTable<FunnelArgs>({
   category: "reports",
   keywords: "mixpanel, funnel, conversion, steps, drop-off, conversion rate",
   docLlm:
-    "One saved Mixpanel funnel as long rows, one per period and step: period_start (DATE), step (1-based), " +
+    "One saved Mixpanel funnel as long rows, one per period and step: period_start (`DATE`), step (1-based), " +
     "step_count, event, goal, step_label, count (users reaching the step), step_conv_ratio (from the previous " +
     "step), overall_conv_ratio (from step 1), avg_time and avg_time_from_start (seconds). Arguments: funnel_id " +
     "(from mixpanel.main.funnels), from_date, to_date ('YYYY-MM-DD'), unit := day/week/month (bucket), " +
@@ -384,7 +387,7 @@ export const retention: VgiFunction = defineMpTable<RetArgs>({
   category: "reports",
   keywords: "mixpanel, retention, cohort analysis, churn, returning users, stickiness",
   docLlm:
-    "Mixpanel retention report as long rows: cohort_date (DATE), cohort_size (users in the cohort), period " +
+    "Mixpanel retention report as long rows: cohort_date (`DATE`), cohort_size (users in the cohort), period " +
     "(0, 1, 2 … units after the cohort date), retained (users who came back in that period) and " +
     "retention_rate (retained / cohort_size). Arguments: from_date, to_date ('YYYY-MM-DD'), born_event := the " +
     "event that puts a user in a cohort (required for birth retention), return_event := the event that counts " +
@@ -771,7 +774,7 @@ export const cohorts: TableDescriptor = defineMpCatalogTable(
   {
     name: "cohorts",
     description: "Saved cohorts with their current size",
-    title: "Cohorts",
+    title: "Saved Cohorts",
     category: "users",
     keywords: "mixpanel, cohorts, segments, audiences, user groups",
     docLlm:
@@ -779,13 +782,13 @@ export const cohorts: TableDescriptor = defineMpCatalogTable(
       "name, description, count (current members), is_visible, created_at, project_id.",
     docMd: "## cohorts\n\nSaved cohorts and their sizes.",
     columns: [
-      C.big("id", "Cohort id.", "id", false),
+      C.big("id", "Numeric cohort identifier; pass it to profiles(cohort_id := ...).", "id", false),
       C.str("name", "Cohort name.", "name"),
-      C.str("description", "Description.", "description"),
+      C.str("description", "Free-text note the cohort author wrote.", "description"),
       C.big("count", "Current number of users in the cohort.", "count"),
       C.bool("is_visible", "Shown in the Mixpanel UI.", "is_visible"),
       C.time("created_at", "When the cohort was created (read as UTC).", "created"),
-      C.big("project_id", "Project id.", "project_id"),
+      C.big("project_id", "Mixpanel project identifier (integer) the cohort belongs to.", "project_id"),
     ],
     requests: () => COHORT_REQ,
     examples: [{ sql: `SELECT name, count FROM ${M}.cohorts ORDER BY count DESC`, description: "Cohorts by size" }],
@@ -825,8 +828,12 @@ export const schemas: TableDescriptor = defineMpCatalogTable(
     columns: [
       C.str("entity_type", "'event' or 'profile'.", "entityType", false),
       C.str("name", "Event name (or '$user' style profile entity name).", "name", false),
-      C.str("display_name", "Display name.", (r) => MPMETA(r).displayName),
-      C.str("description", "Description.", "schemaJson.description"),
+      C.str(
+        "display_name",
+        "Friendly label shown in Mixpanel reports instead of the raw name.",
+        (r) => MPMETA(r).displayName,
+      ),
+      C.str("description", "Lexicon documentation of the event or profile.", "schemaJson.description"),
       C.bool("is_hidden", "Hidden in the Mixpanel UI.", (r) => MPMETA(r).hidden ?? false),
       C.bool("is_dropped", "Data is dropped at ingestion (events only).", (r) => MPMETA(r).dropped ?? false),
       C.strList("tags", "Lexicon tags.", (r) => MPMETA(r).tags),
@@ -894,10 +901,10 @@ export const schemaProperties: TableDescriptor = defineMpCatalogTable(
     columns: [
       C.str("entity_type", "'event' or 'profile'.", "entity_type", false),
       C.str("entity_name", "Event (or profile entity) the property belongs to.", "entity_name", false),
-      C.str("property_name", "Property name.", "property_name", false),
+      C.str("property_name", "Property key as sent with events or set on profiles.", "property_name", false),
       C.str("data_type", "JSON Schema type: string, number, integer, boolean, array, object.", "data_type"),
-      C.str("description", "Description.", "description"),
-      C.str("display_name", "Display name.", "display_name"),
+      C.str("description", "Lexicon documentation of the property.", "description"),
+      C.str("display_name", "Friendly label shown in Mixpanel reports.", "display_name"),
       C.bool("is_hidden", "Hidden in the UI.", "is_hidden"),
       C.bool("is_dropped", "Dropped at ingestion.", "is_dropped"),
       C.bool("is_required", "Listed as required by the schema.", "is_required"),
@@ -920,23 +927,23 @@ export const annotations: TableDescriptor = defineMpCatalogTable(
   {
     name: "annotations",
     description: "Chart annotations (releases, campaigns, incidents) with their dates",
-    title: "Annotations",
+    title: "Chart Annotations",
     category: "lexicon",
     keywords: "mixpanel, annotations, releases, notes, chart markers",
     docLlm:
       "Annotations from /api/app/projects/{id}/annotations: id, annotation_time (read as UTC), description, " +
-      "user_id and user_name of the author, tags. WHERE annotation_time >= / <= bounds are sent as " +
+      "author_id and author_name (the Mixpanel account that wrote it), tags. WHERE annotation_time >= / <= bounds are sent as " +
       "fromDate/toDate.",
     docMd: "## annotations\n\nChart annotations.",
     pushdown: "`annotation_time` bounds → `fromDate` / `toDate` (whole days, re-applied exactly).",
     columns: [
-      C.big("id", "Annotation id.", "id", false),
+      C.big("id", "Annotation identifier (integer, assigned by Mixpanel).", "id", false),
       C.time("annotation_time", "When the annotation is placed (read as UTC).", "date"),
       C.str("description", "Annotation text.", "description"),
-      C.big("user_id", "Author's user id.", "user.id"),
+      C.big("author_id", "Numeric Mixpanel account id of the author (not a tracked user).", "user.id"),
       C.str(
-        "user_name",
-        "Author's name.",
+        "author_name",
+        "Name of the Mixpanel account that wrote the annotation.",
         (r) => [r.user?.first_name, r.user?.last_name].filter((x) => typeof x === "string" && x).join(" ") || null,
       ),
       C.strList("tags", "Tag names.", (r) => (Array.isArray(r.tags) ? r.tags.map((t: Row) => t?.name) : null)),
@@ -972,7 +979,7 @@ export const unifiedEvents: TableDescriptor = exportCatalogTable(
   {
     name: "events",
     description: "Raw events in the shared product-analytics shape (tool, event_name, event_time, ids, properties …)",
-    title: "Events (Shared Shape)",
+    title: "Shared Events",
     category: "unified",
     keywords: "product analytics, events, unified, mixpanel, amplitude, posthog, segment",
     docLlm:
@@ -997,33 +1004,40 @@ export const unifiedEvents: TableDescriptor = exportCatalogTable(
   UNIFIED,
 );
 
-const UNIFIED_USER_PROPS: Record<string, string> = { email: "$email", country: "$country_code", city: "$city" };
+const UNIFIED_USER_PROPS: Record<string, string> = { country: "$country_code", city: "$city", os: "$os" };
 
 export const unifiedUsers: TableDescriptor = defineMpCatalogTable(
   {
     name: "users",
     description: "User profiles in the shared product-analytics shape",
-    title: "Users (Shared Shape)",
+    title: "Shared Users",
     category: "unified",
     keywords: "product analytics, users, persons, profiles, unified, mixpanel",
     docLlm:
       "Mixpanel user profiles (Engage API) with the shared columns: tool, user_id and distinct_id (both the " +
-      "profile distinct_id), email, name, created_at, last_seen_at, country, city, properties JSON. WHERE " +
-      "user_id / distinct_id = / IN and email / country / city = / IN push down. Use mixpanel.main.profiles " +
-      "for cohort filters and every field.",
+      "profile distinct_id), device_ids (Mixpanel profiles carry none: NULL), first_seen ($created), last_seen " +
+      "($last_seen), properties JSON (email is properties->>'$.\"$email\"'), platform (NULL), os, country, city, " +
+      "app_version. WHERE user_id / distinct_id = / IN and country / city / os = / IN push down. Use " +
+      "mixpanel.main.profiles for cohort filters and named profile fields.",
     docMd: "## unified.users\n\nMixpanel user profiles in the shared shape.",
-    pushdown: "`user_id` / `distinct_id` = / IN → distinct_id(s); `email`, `country`, `city` = / IN → Engage `where`.",
+    pushdown: "`user_id` / `distinct_id` = / IN → distinct_id(s); `country`, `city`, `os` = / IN → Engage `where`.",
     columns: [
       tool,
       C.str("user_id", "Your user id (Mixpanel: the profile distinct_id).", "$distinct_id", false),
-      C.str("distinct_id", "The id the tool resolves people by.", "$distinct_id", false),
-      C.str("email", "Email.", PP("$email")),
-      C.str("name", "Display name.", profileName),
-      C.time("created_at", "When the profile was created.", PP("$created")),
-      C.time("last_seen_at", "When the user was last seen.", PP("$last_seen")),
-      C.str("country", "Country code.", PP("$country_code")),
-      C.str("city", "City.", PP("$city")),
-      C.json("properties", "Profile properties (JSON object).", (r) => r.$properties ?? {}),
+      C.str("distinct_id", "The id Mixpanel resolves the person by (same as user_id here).", "$distinct_id", false),
+      C.strList("device_ids", "Device ids of the person (not on Mixpanel profiles: NULL).", () => null),
+      C.time("first_seen", "When the profile was created ($created, read as UTC).", PP("$created")),
+      C.time("last_seen", "When the user was last seen ($last_seen, read as UTC).", PP("$last_seen")),
+      C.json("properties", "Every profile property as a JSON object.", (r) => r.$properties ?? {}),
+      C.str("platform", "Platform (not on Mixpanel profiles: NULL).", () => null),
+      C.str("os", "Operating system last seen ($os).", PP("$os")),
+      C.str("country", "ISO country code from geolocation ($country_code).", PP("$country_code")),
+      C.str("city", "City from geolocation ($city).", PP("$city")),
+      C.str(
+        "app_version",
+        "App version last seen ($app_version_string).",
+        (r) => PP("$app_version_string")(r) ?? PP("$app_version")(r),
+      ),
     ],
     requests: ({ constraints }) => {
       const { form, empty } = engageForm(constraints, UNIFIED_USER_PROPS, ["user_id", "distinct_id"]);
@@ -1044,21 +1058,21 @@ export const unifiedUsers: TableDescriptor = defineMpCatalogTable(
 export const unifiedCohorts: TableDescriptor = defineMpCatalogTable(
   {
     name: "cohorts",
-    description: "Cohorts in the shared product-analytics shape (tool, cohort_id, name, size, timestamps, definition)",
-    title: "Cohorts (Shared Shape)",
+    description: "Cohorts in the shared product-analytics shape (tool, id, name, size, timestamps, definition)",
+    title: "Shared Cohorts",
     category: "unified",
     keywords: "product analytics, cohorts, unified, mixpanel, amplitude, posthog",
     docLlm:
-      "Mixpanel cohorts with the shared columns: tool, cohort_id, name, description, size, created_at, " +
+      "Mixpanel cohorts with the shared columns: tool, id, name, description, size, created_at, " +
       "updated_at, is_archived, definition. Mixpanel's cohort list has no update time, archive flag or " +
       "definition, so those are NULL. Use mixpanel.main.cohorts for is_visible.",
     docMd: "## unified.cohorts\n\nMixpanel cohorts in the shared shape.",
     columns: [
       tool,
-      C.str("cohort_id", "Cohort id.", "id", false),
+      C.str("id", "Mixpanel cohort id as text (profiles(cohort_id := ...) lists members).", "id", false),
       C.str("name", "Cohort name.", "name"),
-      C.str("description", "Description.", "description"),
-      C.big("size", "Current members.", "count"),
+      C.str("description", "Free-text note the cohort author wrote.", "description"),
+      C.big("size", "Number of users currently in the cohort.", "count"),
       C.time("created_at", "Created.", "created"),
       C.time("updated_at", "Last modified (not reported by Mixpanel: NULL).", () => null),
       C.bool("is_archived", "Archived (not reported by Mixpanel: NULL).", () => null),
@@ -1068,14 +1082,14 @@ export const unifiedCohorts: TableDescriptor = defineMpCatalogTable(
     examples: [{ sql: `SELECT tool, name, size FROM ${U}.cohorts ORDER BY size DESC`, description: "Cohorts by size" }],
   },
   UNIFIED,
-  ["cohort_id"],
+  ["id"],
 );
 
 export const unifiedEventDefinitions: TableDescriptor = defineMpCatalogTable(
   {
     name: "event_definitions",
     description: "Event definitions in the shared product-analytics shape (name, description, category, volume)",
-    title: "Event Definitions (Shared Shape)",
+    title: "Shared Event Definitions",
     category: "unified",
     keywords: "product analytics, event definitions, tracking plan, lexicon, unified, mixpanel",
     docLlm:
@@ -1085,14 +1099,14 @@ export const unifiedEventDefinitions: TableDescriptor = defineMpCatalogTable(
     docMd: "## unified.event_definitions\n\nLexicon events in the shared shape.",
     columns: [
       tool,
-      C.str("event_name", "Event name.", "name", false),
-      C.str("display_name", "Display name.", (r) => MPMETA(r).displayName),
-      C.str("description", "Description.", "schemaJson.description"),
+      C.str("event_name", "Raw event name as tracked by the SDKs.", "name", false),
+      C.str("display_name", "Friendly label shown in Mixpanel reports.", (r) => MPMETA(r).displayName),
+      C.str("description", "Lexicon documentation of the event.", "schemaJson.description"),
       C.str("category", "Category (Mixpanel: NULL).", () => null),
       C.bool("is_hidden", "Hidden in the tool's UI.", (r) => MPMETA(r).hidden ?? false),
       C.bool("is_active", "Receiving data (Mixpanel: not dropped).", (r) => !(MPMETA(r).dropped ?? false)),
       C.big("volume", "Recent volume (Mixpanel: NULL).", () => null),
-      C.strList("tags", "Tags.", (r) => MPMETA(r).tags),
+      C.strList("tags", "Lexicon tags used to group events.", (r) => MPMETA(r).tags),
     ],
     requests: () => schemaRequests(["event"]),
     examples: [
@@ -1110,7 +1124,7 @@ export const unifiedPropertyDefinitions: TableDescriptor = defineMpCatalogTable(
   {
     name: "property_definitions",
     description: "Event and user property definitions in the shared product-analytics shape",
-    title: "Property Definitions (Shared Shape)",
+    title: "Shared Property Definitions",
     category: "unified",
     keywords: "product analytics, property definitions, tracking plan, lexicon, unified, mixpanel",
     docLlm:
@@ -1121,13 +1135,13 @@ export const unifiedPropertyDefinitions: TableDescriptor = defineMpCatalogTable(
     pushdown: "`scope` = / IN reads only the event or profile schemas.",
     columns: [
       tool,
-      C.str("property_name", "Property name.", "property_name", false),
+      C.str("property_name", "Property key as sent with events or set on profiles.", "property_name", false),
       C.str("scope", "'event' or 'user'.", (r) => (r.entity_type === "profile" ? "user" : "event"), false),
       C.str("event_name", "Event the property belongs to (event scope; NULL for user properties).", (r) =>
         r.entity_type === "event" ? r.entity_name : null,
       ),
-      C.str("data_type", "Data type.", "data_type"),
-      C.str("description", "Description.", "description"),
+      C.str("data_type", "JSON Schema type: string, number, integer, boolean, array or object.", "data_type"),
+      C.str("description", "Lexicon documentation of the property.", "description"),
       C.bool("is_array", "Array-valued.", (r) => r.data_type === "array"),
       C.bool("is_required", "Required.", "is_required"),
       C.bool("is_hidden", "Hidden.", "is_hidden"),

@@ -229,6 +229,13 @@ const platformOf = (r: Row) => {
   return PLATFORM[lib.toLowerCase()] ?? lib;
 };
 
+/** Mixpanel has no event uuid: use the client dedup id, else a deterministic composite. */
+const eventUuid = (r: Row) => {
+  const ins = P("$insert_id")(r);
+  if (typeof ins === "string" && ins) return ins;
+  return `mp:${String(P("distinct_id")(r) ?? "")}:${eventTime(r) ?? ""}:${String(r.__name ?? "")}`;
+};
+
 /** Revenue: a numeric `revenue` / `$revenue` / `$amount` event property (Mixpanel has no fixed field). */
 const revenueOf = (r: Row) => asNum(P("revenue")(r) ?? P("$revenue")(r) ?? P("$amount")(r));
 
@@ -257,8 +264,13 @@ export const EVENT_COLUMNS: Col[] = [
 /** The shared product-analytics vocabulary (`mixpanel.unified.events`). */
 export const UNIFIED_EVENT_COLUMNS: Col[] = [
   C.lit("tool", "The analytics tool the row came from: 'mixpanel'.", "mixpanel"),
-  C.str("event_id", "The tool's unique event id (Mixpanel has none: the $insert_id).", P("$insert_id")),
-  C.str("event_name", "Event name.", (r) => r.__name, false),
+  C.str(
+    "uuid",
+    "The tool's unique event id. Mixpanel has none: the $insert_id, else 'mp:<distinct_id>:<time ms>:<event>'.",
+    eventUuid,
+    false,
+  ),
+  C.str("event_name", "Event name as sent by the SDK, e.g. 'Sign Up'.", (r) => r.__name, false),
   C.time("event_time", "When the event happened (UTC).", eventTime, false),
   C.time(
     "received_time",
@@ -300,7 +312,6 @@ export const EVENT_PROPS: Record<string, string> = {
   lib: "mp_lib",
 };
 export const UNIFIED_EVENT_PROPS: Record<string, string> = {
-  event_id: "$insert_id",
   insert_id: "$insert_id",
   distinct_id: "distinct_id",
   device_id: "$device_id",

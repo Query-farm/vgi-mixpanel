@@ -6,8 +6,8 @@
 # The worker to attach, relative to this directory. Build it first with `make build`.
 location = "bin/vgi-mixpanel-worker"
 
-# Fail on warnings while you build. Raise this to "info" before you publish the worker.
-fail_on = "warning"
+# Gate at "info": zero findings of any severity.
+fail_on = "info"
 
 # Waive a finding only with a kind and a reason, so the waiver can be audited:
 #   domain-exemption  permanent and legitimate for this worker
@@ -15,7 +15,28 @@ fail_on = "warning"
 #   timing            slow or flaky because of the environment, not the metadata
 #   tooling-bug       the linter is wrong; report it upstream
 ignore = [
-  # { code = "VGI146", kind = "domain-exemption", reason = "every entry point needs a key" },
+  { code = "VGI807", kind = "domain-exemption", reason = "unified.events is the raw export, which can repeat a $insert_id until Mixpanel deduplicates at query time, so uuid cannot be attested unique; unified.property_definitions rows are unique on (scope, event_name, property_name) but event_name is NULL for user properties, and a key with NULLs cannot be attested ENFORCED" },
+]
+
+# `id` is BIGINT in Mixpanel-native tables (cohorts, annotations) and VARCHAR in
+# unified.cohorts, whose shared product-analytics contract types every tool's cohort id as text.
+[options]
+type_consistency_ignore_names = ["id"]
+
+# VGI808/VGI809 guess foreign keys from column names. The real relationships here cannot
+# be attested ENFORCED (raw events reference people who may have no profile), and the
+# remaining hits are a table's own key named after the table.
+[per_object."mixpanel.main.funnels"]
+ignore = [{ code = "VGI808", kind = "tooling-bug", reason = "funnel_id is this table's own primary key, not a reference to it" }]
+[per_object."mixpanel.unified.users"]
+ignore = [
+  { code = "VGI808", kind = "tooling-bug", reason = "user_id is this table's own key (equal to distinct_id, the primary key)" },
+  { code = "VGI809", kind = "domain-exemption", reason = "events.distinct_id -> users cannot be an ENFORCED foreign key: anonymous and profile-less ids appear in events" },
+]
+[per_object."mixpanel.unified.events"]
+ignore = [
+  { code = "VGI808", kind = "domain-exemption", reason = "events.user_id may name a user without a Mixpanel profile, so a foreign key to users cannot be attested ENFORCED" },
+  { code = "VGI809", kind = "domain-exemption", reason = "events.distinct_id -> users cannot be an ENFORCED foreign key: anonymous and profile-less ids appear in events" },
 ]
 
 # Adopting the gate on a worker that already has findings? Record them once with

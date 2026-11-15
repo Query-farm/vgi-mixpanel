@@ -1,16 +1,68 @@
 # Private graders for the public vgi.agent_test_tasks in the worker's catalog metadata.
-# `vgi-lint lint --ai` runs an agent on each prompt and grades it with check_sql.
-# See https://github.com/Query-farm/vgi-lint-check (VGI920).
+# `vgi-lint lint --ai` runs an agent on each prompt and grades it (VGI920).
+#
+# Every mixpanel object needs a `mixpanel` secret pointing at a Mixpanel project (the
+# offline replay project in test/mock_api/server.py works: USERNAME 'sa.test', SECRET
+# 'test-secret', PROJECT_ID '4242', BASE_URL 'http://127.0.0.1:<port>'). The fixture
+# data is fixed, so every task compares against a reference query.
 tasks:
-  - name: formal_greeting
-    reference_sql: SELECT mixpanel.main.greet('Grace', 'formal') AS greeting
-  - name: sum_of_squares
-    reference_sql: SELECT sum(squared) AS total FROM mixpanel.main.sequence_table(10)
-  - name: stepped_sequence
-    reference_sql: SELECT n FROM mixpanel.main.sequence_table(4, step := 5) ORDER BY n
-  # Reads the public demo API (https://vgi-starter-api.query-farm.services/v1).
-  - name: items_per_category
-    check_sql: >-
-      SELECT count(*) = 3 AND sum(items) = 25
-      FROM (SELECT category, count(*) AS items
-            FROM mixpanel.main.fetch_items('https://vgi-starter-api.query-farm.services/v1') GROUP BY category)
+  - name: signups_by_os
+    reference_sql: >-
+      SELECT os, count(*) AS signups FROM mixpanel.main.events(from_date := '2026-11-02', to_date := '2026-11-02')
+      WHERE event_name = 'Sign Up' GROUP BY os ORDER BY os
+  - name: purchase_revenue
+    reference_sql: >-
+      SELECT sum(revenue) AS revenue FROM mixpanel.unified.events
+      WHERE event_name = 'Purchase' AND event_time >= TIMESTAMPTZ '2026-11-01' AND event_time < TIMESTAMPTZ '2026-11-04'
+  - name: ios_users
+    reference_sql: >-
+      SELECT count(DISTINCT distinct_id) AS users FROM mixpanel.main.events(from_date := '2026-11-01', to_date := '2026-11-03')
+      WHERE os = 'iOS'
+  - name: daily_signups
+    reference_sql: >-
+      SELECT period_start::DATE AS day, value AS signups
+      FROM mixpanel.main.segmentation('Sign Up', '2026-11-01', '2026-11-03') ORDER BY day
+  - name: signup_funnel
+    reference_sql: >-
+      SELECT f.overall_conv_ratio FROM mixpanel.main.funnel(
+        (SELECT funnel_id FROM mixpanel.main.funnels WHERE name = 'Signup funnel'), '2026-11-02', '2026-11-08', unit := 'week') f
+      WHERE f.step = f.step_count
+  - name: retention_day1
+    reference_sql: >-
+      SELECT retention_rate FROM mixpanel.main.retention('2026-11-01', '2026-11-01', born_event := 'Sign Up', interval_count := 1)
+      WHERE period = 1
+  - name: top_event_today
+    reference_sql: SELECT event FROM mixpanel.main.top_events() ORDER BY amount DESC LIMIT 1
+  - name: pro_users
+    reference_sql: >-
+      SELECT email FROM mixpanel.main.profiles(where_expr := 'properties["plan"] == "pro"') ORDER BY email
+  - name: biggest_cohort
+    reference_sql: SELECT name FROM mixpanel.main.cohorts ORDER BY count DESC LIMIT 1
+  - name: hidden_events
+    reference_sql: >-
+      SELECT name FROM mixpanel.main.schemas WHERE entity_type = 'event' AND is_hidden ORDER BY name
+  - name: purchase_properties
+    reference_sql: >-
+      SELECT property_name, data_type FROM mixpanel.main.schema_properties
+      WHERE entity_type = 'event' AND entity_name = 'Purchase' ORDER BY property_name
+  - name: november_annotations
+    reference_sql: >-
+      SELECT annotation_time, description FROM mixpanel.main.annotations
+      WHERE annotation_time >= TIMESTAMPTZ '2026-11-01' AND annotation_time < TIMESTAMPTZ '2026-12-01'
+      ORDER BY annotation_time
+  - name: purchase_property_frequency
+    reference_sql: >-
+      SELECT property_name, count FROM mixpanel.main.top_event_properties('Purchase') ORDER BY count DESC, property_name
+  - name: purchase_plan_values
+    reference_sql: SELECT value FROM mixpanel.main.event_property_values('Purchase', 'plan') ORDER BY rank
+  - name: common_event_names
+    reference_sql: SELECT event_name FROM mixpanel.main.event_names(max_events := 3) ORDER BY rank
+  - name: shared_cohort_sizes
+    reference_sql: SELECT name, size FROM mixpanel.unified.cohorts ORDER BY size DESC
+  - name: shared_inactive_events
+    reference_sql: SELECT event_name FROM mixpanel.unified.event_definitions WHERE NOT is_active ORDER BY event_name
+  - name: shared_user_properties
+    reference_sql: >-
+      SELECT property_name, data_type FROM mixpanel.unified.property_definitions WHERE scope = 'user' ORDER BY property_name
+  - name: shared_users_by_country
+    reference_sql: SELECT country, count(*) AS users FROM mixpanel.unified.users GROUP BY country ORDER BY country

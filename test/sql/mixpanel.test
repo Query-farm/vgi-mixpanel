@@ -211,7 +211,7 @@ mixpanel	Web	4	2	99.0
 mixpanel	iOS	6	3	98.0
 
 query TTTTTTT
-SELECT event_id, user_id, device_id, session_id, country, library, user_properties IS NULL FROM mixpanel.unified.events WHERE insert_id = 'e11' AND event_time >= TIMESTAMPTZ '2026-11-03' AND event_time < TIMESTAMPTZ '2026-11-04';
+SELECT uuid, user_id, device_id, session_id, country, library, user_properties IS NULL FROM mixpanel.unified.events WHERE insert_id = 'e11' AND event_time >= TIMESTAMPTZ '2026-11-03' AND event_time < TIMESTAMPTZ '2026-11-04';
 ----
 e11	u1	D1	s-1	US	iphone	true
 
@@ -224,7 +224,7 @@ string(properties["$insert_id"]) == "e11"
 query T
 SELECT string_agg(column_name, ',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_catalog = 'mixpanel' AND table_schema = 'unified' AND table_name = 'events';
 ----
-tool,event_id,event_name,event_time,received_time,user_id,device_id,distinct_id,session_id,insert_id,properties,user_properties,platform,os,country,city,app_version,library,revenue
+tool,uuid,event_name,event_time,received_time,user_id,device_id,distinct_id,session_id,insert_id,properties,user_properties,platform,os,country,city,app_version,library,revenue
 
 # ---------------------------------------------------------------- segmentation
 
@@ -444,17 +444,28 @@ SELECT id, count, name, project_id, is_visible, created_at FROM mixpanel.main.co
 2000	3	Churn risk	4242	false	2026-10-15 16:45:10+00
 
 query TTIT
-SELECT tool, cohort_id, size, updated_at FROM mixpanel.unified.cohorts ORDER BY size DESC;
+SELECT tool, id, size, updated_at FROM mixpanel.unified.cohorts ORDER BY size DESC;
 ----
 mixpanel	2000	3	NULL
 mixpanel	1000	2	NULL
 
-query TTTTT
-SELECT tool, user_id, email, country, last_seen_at FROM mixpanel.unified.users WHERE country = 'US' ORDER BY user_id;
+query TTTTTT
+SELECT tool, user_id, properties->>'$."$email"', country, first_seen, last_seen FROM mixpanel.unified.users WHERE country = 'US' ORDER BY user_id;
 ----
-mixpanel	u1	ada@example.com	US	2026-11-03 12:00:00+00
-mixpanel	u3	alan@example.com	US	2026-11-03 09:00:00+00
-mixpanel	u7	radia@example.com	US	2026-11-03 20:00:00+00
+mixpanel	u1	ada@example.com	US	2026-01-05 10:00:00+00	2026-11-03 12:00:00+00
+mixpanel	u3	alan@example.com	US	2026-03-15 14:00:00+00	2026-11-03 09:00:00+00
+mixpanel	u7	radia@example.com	US	2026-11-03 20:00:00+00	2026-11-03 20:00:00+00
+
+# The shared users shape: the vocabulary's columns, in order.
+query T
+SELECT string_agg(column_name || ' ' || data_type, ',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_catalog = 'mixpanel' AND table_schema = 'unified' AND table_name = 'users';
+----
+tool VARCHAR,user_id VARCHAR,distinct_id VARCHAR,device_ids VARCHAR[],first_seen TIMESTAMP WITH TIME ZONE,last_seen TIMESTAMP WITH TIME ZONE,properties JSON,platform VARCHAR,os VARCHAR,country VARCHAR,city VARCHAR,app_version VARCHAR
+
+query T
+SELECT string_agg(column_name || ' ' || data_type, ',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_catalog = 'mixpanel' AND table_schema = 'unified' AND table_name = 'cohorts';
+----
+tool VARCHAR,id VARCHAR,name VARCHAR,description VARCHAR,size BIGINT,created_at TIMESTAMP WITH TIME ZONE,updated_at TIMESTAMP WITH TIME ZONE,is_archived BOOLEAN,definition JSON
 
 query T
 SELECT json_extract_string(form, '$.where') FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/query/engage') ORDER BY seq DESC LIMIT 1;
@@ -533,7 +544,7 @@ SELECT count(*) FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/app/
 2
 
 query ITTTT
-SELECT id, annotation_time, description, user_name, tags::VARCHAR FROM mixpanel.main.annotations WHERE annotation_time >= TIMESTAMPTZ '2026-11-01' ORDER BY id;
+SELECT id, annotation_time, description, author_name, tags::VARCHAR FROM mixpanel.main.annotations WHERE annotation_time >= TIMESTAMPTZ '2026-11-01' ORDER BY id;
 ----
 12	2026-11-01 09:00:00+00	Fall campaign launched	Grace Hopper	[Marketing]
 13	2026-11-03 15:30:00+00	Checkout incident	NULL	[]

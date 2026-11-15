@@ -127,7 +127,10 @@ export const UNIFIED_DOC_LLM =
 export const UNIFIED_DOC_MD =
   "## unified\n\n" +
   "Events, users, cohorts and data-dictionary definitions with the column names shared by the Query.Farm " +
-  "product-analytics workers (Amplitude, Mixpanel, PostHog), so the same query runs against each.";
+  "product-analytics workers (Amplitude, Mixpanel, PostHog), so the same query runs against each.\n\n" +
+  "Columns a tool cannot fill are NULL rather than missing: Mixpanel has no event uuid (the `$insert_id` " +
+  "is used), no user properties on raw events and no cohort definitions in its cohort list.\n\n" +
+  "Use the `main` schema for every Mixpanel field, the reports and the cohort member lists.";
 
 export const AGENT_TEST_TASKS = [
   { name: "signups_by_os", prompt: "How many 'Sign Up' events were there per operating system on 2026-11-02?" },
@@ -154,6 +157,28 @@ export const AGENT_TEST_TASKS = [
     prompt: "Which properties does the Lexicon define for the Purchase event, and of what type?",
   },
   { name: "november_annotations", prompt: "What annotations were added in November 2026?" },
+  { name: "purchase_property_frequency", prompt: "Which properties are sent most often with Purchase events?" },
+  {
+    name: "purchase_plan_values",
+    prompt: "Which values does the plan property take on Purchase events, most common first?",
+  },
+  { name: "common_event_names", prompt: "What are the three most common event names over the last month?" },
+  {
+    name: "shared_cohort_sizes",
+    prompt: "Using the shared product-analytics tables, list every cohort with its size, largest first.",
+  },
+  {
+    name: "shared_inactive_events",
+    prompt: "Using the shared product-analytics tables, which events in the tracking plan are not active?",
+  },
+  {
+    name: "shared_user_properties",
+    prompt: "Using the shared product-analytics tables, which user-level properties are defined, and of what type?",
+  },
+  {
+    name: "shared_users_by_country",
+    prompt: "Using the shared product-analytics tables, how many users are there per country?",
+  },
 ];
 
 /** Bind-only probes: each binds the function and shows its columns without fetching (LIMIT 0). */
@@ -196,7 +221,7 @@ export const SCHEMA_TAGS: Record<string, string> = {
   "vgi.keywords": keywordsArray("mixpanel, events, export, segmentation, funnels, retention, engage, cohorts, lexicon"),
   "vgi.doc_llm": SCHEMA_DOC_LLM,
   "vgi.doc_md": SCHEMA_DOC_MD,
-  "vgi.categories": JSON.stringify(SCHEMA_CATEGORIES),
+  "vgi.categories": JSON.stringify(SCHEMA_CATEGORIES.filter((c) => c.name !== "unified")),
 };
 
 export const UNIFIED_SCHEMA_TAGS: Record<string, string> = {
@@ -205,5 +230,5 @@ export const UNIFIED_SCHEMA_TAGS: Record<string, string> = {
   "vgi.keywords": keywordsArray("product analytics, unified, events, users, cohorts, amplitude, posthog, mixpanel"),
   "vgi.doc_llm": UNIFIED_DOC_LLM,
   "vgi.doc_md": UNIFIED_DOC_MD,
-  "vgi.categories": JSON.stringify(SCHEMA_CATEGORIES),
+  "vgi.categories": JSON.stringify(SCHEMA_CATEGORIES.filter((c) => c.name === "unified")),
 };
