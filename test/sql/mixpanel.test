@@ -1,148 +1,567 @@
 # name: test/sql/mixpanel.test
-# description: SQL-level tests for the mixpanel worker, run through DuckDB by ci/run-integration.sh
+# description: SQL tests for the mixpanel worker against the offline Mixpanel replay server (test/mock_api/server.py)
 # group: [mixpanel]
-# managed-by: vgi-starters (edit upstream in shared/, then run tools/render.py)
 
 require vgi
 
 require-env MIXPANEL_WORKER
 
-require-env MIXPANEL_MOCK_API
+require-env MIXPANEL_FIXTURE_URL
 
-require-env MIXPANEL_MOCK_API_AUTH
+# httpfs + json read the replay server's /__requests log to assert what was pushed down.
+statement ok
+LOAD httpfs;
+
+statement ok
+LOAD json;
 
 statement ok
 ATTACH 'mixpanel' (TYPE vgi, LOCATION '{MIXPANEL_WORKER}');
 
-# ---------------------------------------------------------------- greet (scalar)
+# ---------------------------------------------------------------- secret errors
 
-query T
-SELECT mixpanel.main.greet('Ada');
-----
-Hi, Ada!
-
-query T
-SELECT mixpanel.main.greet('Ada', 'formal');
-----
-Good day, Ada.
-
-# NULL in, NULL out.
-query T
-SELECT mixpanel.main.greet(NULL);
-----
-NULL
-
-# Works over a whole column, one result per row.
-query T
-SELECT mixpanel.main.greet(name) FROM (VALUES ('Ada'), ('Grace'), (NULL)) AS t(name) ORDER BY ALL NULLS LAST;
-----
-Hi, Ada!
-Hi, Grace!
-NULL
-
-# `style` is constrained to 'casual' | 'formal' and checked when the query is bound.
-# (No expected message: each SDK words constraint errors its own way.)
 statement error
-SELECT mixpanel.main.greet('Ada', 'loud');
+SELECT count(*) FROM mixpanel.main.cohorts;
 ----
-<REGEX>:.*
+<REGEX>:.*no mixpanel secret.*
 
-# ------------------------------------------------------ sequence_table (table fn)
+statement ok
+CREATE SECRET mp_bad (TYPE mixpanel, USERNAME 'sa.test', SECRET 'wrong', PROJECT_ID '4242', BASE_URL '{MIXPANEL_FIXTURE_URL}');
 
-query II
-SELECT n, squared FROM mixpanel.main.sequence_table(4) ORDER BY n;
+statement error
+SELECT count(*) FROM mixpanel.main.cohorts;
 ----
-0	0
-1	1
-2	4
-3	9
+<REGEX>:.*HTTP 401.*Invalid service account credentials.*
 
-# Named argument with a default.
+statement ok
+DROP SECRET mp_bad;
+
+statement ok
+CREATE SECRET mp_region (TYPE mixpanel, USERNAME 'u', SECRET 's', PROJECT_ID '4242', REGION 'apac');
+
+statement error
+SELECT count(*) FROM mixpanel.main.cohorts;
+----
+<REGEX>:.*region must be 'us', 'eu' or 'in'.*
+
+statement ok
+DROP SECRET mp_region;
+
+statement ok
+CREATE SECRET mp_insecure (TYPE mixpanel, USERNAME 'u', SECRET 's', PROJECT_ID '4242', BASE_URL 'http://mixpanel.example.com');
+
+statement error
+SELECT count(*) FROM mixpanel.main.cohorts;
+----
+<REGEX>:.*https.*
+
+statement ok
+DROP SECRET mp_insecure;
+
+statement ok
+CREATE SECRET mp_project (TYPE mixpanel, USERNAME 'sa.test', SECRET 'test-secret', PROJECT_ID '9999', BASE_URL '{MIXPANEL_FIXTURE_URL}');
+
+statement error
+SELECT count(*) FROM mixpanel.main.cohorts;
+----
+<REGEX>:.*HTTP 403.*
+
+statement ok
+DROP SECRET mp_project;
+
+# A legacy project API secret authenticates too.
+statement ok
+CREATE SECRET mp_legacy (TYPE mixpanel, API_SECRET 'legacy-secret', PROJECT_ID '4242', REGION 'eu', BASE_URL '{MIXPANEL_FIXTURE_URL}');
+
 query I
-SELECT n FROM mixpanel.main.sequence_table(3, step := 5) ORDER BY n;
+SELECT count(*) FROM mixpanel.main.cohorts;
 ----
-0
+2
+
+query T
+SELECT "user" FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/query/cohorts/list') ORDER BY seq DESC LIMIT 1;
+----
+api_secret
+
+statement ok
+DROP SECRET mp_legacy;
+
+statement ok
+CREATE SECRET mp (TYPE mixpanel, USERNAME 'sa.test', SECRET 'test-secret', PROJECT_ID '4242', BASE_URL '{MIXPANEL_FIXTURE_URL}');
+
+# ------------------------------------------------------------------ raw events
+
+query TTTTT
+SELECT event_name, event_time, distinct_id, os, lib FROM mixpanel.main.events(from_date := '2026-11-01', to_date := '2026-11-01') ORDER BY event_time;
+----
+Sign Up	2026-11-01 09:00:00+00	u1	iOS	iphone
+Page View	2026-11-01 09:05:00+00	u3	Mac OS X	web
+Sign Up	2026-11-01 12:00:00+00	u2	Android	android
+Purchase	2026-11-01 13:00:00+00	u1	iOS	iphone
+
+# Typed columns: TIMESTAMPTZ event_time / processing_time, JSON properties.
+query TTTI
+SELECT typeof(event_time), typeof(processing_time), typeof(properties), epoch_ms(processing_time) - epoch_ms(event_time) FROM mixpanel.main.events(from_date := '2026-11-01', to_date := '2026-11-01') LIMIT 1;
+----
+TIMESTAMP WITH TIME ZONE	TIMESTAMP WITH TIME ZONE	JSON	2000
+
+query TTR
+SELECT insert_id, properties->>'plan', (properties->>'revenue')::DOUBLE FROM mixpanel.main.events(from_date := '2026-11-01', to_date := '2026-11-03') WHERE event_name = 'Purchase' ORDER BY insert_id;
+----
+e04	pro	49.0
+e07	basic	19.5
+e10	pro	99.0
+e12	pro	49.0
+
+# Pushdown: event_time bounds -> from/to dates (+-1 day), event_name IN -> event array,
+# os = -> where expression; the SDK then re-applies every predicate exactly.
+query TTT
+SELECT event_name, distinct_id, event_time FROM mixpanel.main.events() WHERE event_name IN ('Sign Up', 'Purchase') AND os = 'iOS' AND event_time >= TIMESTAMPTZ '2026-11-02' AND event_time < TIMESTAMPTZ '2026-11-04' ORDER BY event_time;
+----
+Sign Up	12345	2026-11-02 10:30:00+00
+Purchase	u1	2026-11-03 12:00:00+00
+Sign Up	u7	2026-11-03 20:00:00+00
+
+query TTTT
+SELECT json_extract_string(query, '$.from_date'), json_extract_string(query, '$.to_date'), json_extract_string(query, '$.event'), json_extract_string(query, '$.where') FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/2.0/export') ORDER BY seq DESC LIMIT 1;
+----
+2026-11-01	2026-11-05	["Sign Up","Purchase"]	string(properties["$os"]) == "iOS"
+
+# A numeric distinct_id still matches: the where expression casts with string().
+query TT
+SELECT event_name, insert_id FROM mixpanel.main.events(from_date := '2026-11-01', to_date := '2026-11-03') WHERE distinct_id = '12345';
+----
+Sign Up	e06
+
+query T
+SELECT json_extract_string(query, '$.where') FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/2.0/export') ORDER BY seq DESC LIMIT 1;
+----
+string(properties["distinct_id"]) == "12345"
+
+# Quoting: a double quote inside a pushed value is escaped in the expression.
+query TT
+SELECT distinct_id, city FROM mixpanel.main.events() WHERE city = 'O"Fallon' AND event_time >= TIMESTAMPTZ '2026-11-01' AND event_time < TIMESTAMPTZ '2026-11-04';
+----
+u7	O"Fallon
+
+query T
+SELECT json_extract_string(query, '$.where') FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/2.0/export') ORDER BY seq DESC LIMIT 1;
+----
+string(properties["$city"]) == "O\"Fallon"
+
+# IN on a property column becomes a parenthesised or; a caller expression is AND-ed in.
+query TT
+SELECT distinct_id, country_code FROM mixpanel.main.events(from_date := '2026-11-01', to_date := '2026-11-03', where_expr := 'properties["plan"] == "free"') WHERE country_code IN ('CA', 'DE') ORDER BY 1;
+----
+12345	CA
+u6	DE
+
+query T
+SELECT json_extract_string(query, '$.where') FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/2.0/export') ORDER BY seq DESC LIMIT 1;
+----
+(properties["plan"] == "free") and (string(properties["mp_country_code"]) == "CA" or string(properties["mp_country_code"]) == "DE")
+
+query T
+SELECT distinct_id FROM mixpanel.main.events(from_date := '2026-11-01', to_date := '2026-11-03', where_expr := 'properties["campaign"] == "Fall \"Promo\" \\ 2026"');
+----
+u7
+
+# An invalid expression is Mixpanel's 400, surfaced with the status.
+statement error
+SELECT count(*) FROM mixpanel.main.events(from_date := '2026-11-01', to_date := '2026-11-01', where_expr := 'properties["plan" ==');
+----
+<REGEX>:.*HTTP 400.*invalid expression.*
+
+# chunk_days := 1: one export request per day, the cursor carries across them.
+query II
+SELECT count(*), count(DISTINCT insert_id) FROM mixpanel.main.events(from_date := '2026-10-31', to_date := '2026-11-04', chunk_days := 1);
+----
+15	15
+
+query I
+SELECT count(DISTINCT json_extract_string(query, '$.from_date')) FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/2.0/export') WHERE json_extract_string(query, '$.from_date') = json_extract_string(query, '$.to_date') AND json_extract_string(query, '$.from_date') BETWEEN '2026-10-31' AND '2026-11-04';
+----
 5
-10
 
-# Larger than one batch: the cursor must carry across process calls.
-query II
-SELECT count(*), max(n) FROM mixpanel.main.sequence_table(25000);
+# No window given: the last lookback_days (7) up to today; the fixture places
+# events 0, 1, 3 and 10 days ago.
+query I
+SELECT count(*) FROM mixpanel.main.events();
 ----
-25000	24999
+3
 
 query I
-SELECT count(*) FROM mixpanel.main.sequence_table(0);
+SELECT count(*) FROM mixpanel.main.events(lookback_days := 11);
 ----
-0
+4
 
-# count is constrained to [0, 1000000].
+# Argument constraints are enforced at bind.
 statement error
-SELECT * FROM mixpanel.main.sequence_table(-1);
+SELECT count(*) FROM mixpanel.main.events(from_date := '11/01/2026');
 ----
-<REGEX>:.*
+<REGEX>:.*from_date.*
 
-# Named arguments are constrained too: step >= 1.
+# ------------------------------------------------------------- unified events
+
+query TTTTR
+SELECT tool, platform, count(*)::VARCHAR, count(DISTINCT distinct_id)::VARCHAR, sum(revenue) FROM mixpanel.unified.events WHERE event_time >= TIMESTAMPTZ '2026-11-01' AND event_time < TIMESTAMPTZ '2026-11-04' GROUP BY ALL ORDER BY platform;
+----
+mixpanel	Android	3	2	19.5
+mixpanel	Web	4	2	99.0
+mixpanel	iOS	6	3	98.0
+
+query TTTTTTT
+SELECT event_id, user_id, device_id, session_id, country, library, user_properties IS NULL FROM mixpanel.unified.events WHERE insert_id = 'e11' AND event_time >= TIMESTAMPTZ '2026-11-03' AND event_time < TIMESTAMPTZ '2026-11-04';
+----
+e11	u1	D1	s-1	US	iphone	true
+
+query T
+SELECT json_extract_string(query, '$.where') FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/2.0/export') ORDER BY seq DESC LIMIT 1;
+----
+string(properties["$insert_id"]) == "e11"
+
+# The shared shape has exactly the vocabulary's columns, in order.
+query T
+SELECT string_agg(column_name, ',' ORDER BY ordinal_position) FROM information_schema.columns WHERE table_catalog = 'mixpanel' AND table_schema = 'unified' AND table_name = 'events';
+----
+tool,event_id,event_name,event_time,received_time,user_id,device_id,distinct_id,session_id,insert_id,properties,user_properties,platform,os,country,city,app_version,library,revenue
+
+# ---------------------------------------------------------------- segmentation
+
+query TTTR
+SELECT event, segment, period_start, value FROM mixpanel.main.segmentation('Sign Up', '2026-11-01', '2026-11-03') ORDER BY period_start;
+----
+Sign Up	NULL	2026-11-01 00:00:00	2.0
+Sign Up	NULL	2026-11-02 00:00:00	3.0
+Sign Up	NULL	2026-11-03 00:00:00	1.0
+
+query TR
+SELECT segment, sum(value) FROM mixpanel.main.segmentation('Sign Up', '2026-11-01', '2026-11-03', segment_by := 'properties["$os"]') GROUP BY segment ORDER BY segment;
+----
+Android	2.0
+Mac OS X	1.0
+iOS	3.0
+
+query TR
+SELECT period, value FROM mixpanel.main.segmentation('Purchase', '2026-11-01', '2026-11-03', count_type := 'unique', where_expr := 'properties["plan"] == "pro"') ORDER BY period;
+----
+2026-11-01	1.0
+2026-11-02	0.0
+2026-11-03	2.0
+
+query TTT
+SELECT json_extract_string(query, '$.type'), json_extract_string(query, '$.where'), json_extract_string(query, '$.on') FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/query/segmentation') ORDER BY seq DESC LIMIT 1;
+----
+unique	properties["plan"] == "pro"	NULL
+
+query TR
+SELECT period, value FROM mixpanel.main.segmentation('Sign Up', '2026-11-02', '2026-11-02', unit := 'hour') WHERE value > 0 ORDER BY period;
+----
+2026-11-02 08:00:00	1.0
+2026-11-02 10:00:00	1.0
+2026-11-02 15:00:00	1.0
+
 statement error
-SELECT * FROM mixpanel.main.sequence_table(3, step := 0);
+SELECT * FROM mixpanel.main.segmentation('Sign Up', '2026-11-01', '2026-11-03', unit := 'fortnight');
 ----
-<REGEX>:.*
+<REGEX>:.*unit.*
 
-# ------------------------------------------------- fetch_items (REST table fn)
-
-query IIT
-SELECT count(*), sum(id), min(name) FROM mixpanel.main.fetch_items('{MIXPANEL_MOCK_API}', page_size := 4);
+statement error
+SELECT * FROM mixpanel.main.segmentation('Sign Up', '2026-11-03', '2026-11-01');
 ----
-25	325	item-01
+<REGEX>:.*after to_date.*
+
+# --------------------------------------------------------------------- funnels
+
+# The first funnels/list request answers 503; the retry succeeds.
+query IT
+SELECT funnel_id, name FROM mixpanel.main.funnels ORDER BY funnel_id;
+----
+7509	Signup funnel
+7510	Checkout
+
+query I
+SELECT count(*) FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/query/funnels/list');
+----
+2
+
+query TIITIRR
+SELECT period_start, step, step_count, event, count, round(overall_conv_ratio, 4), avg_time FROM mixpanel.main.funnel(7509, '2026-11-01', '2026-11-03') ORDER BY period_start, step;
+----
+2026-11-01	1	2	Sign Up	3	1.0	NULL
+2026-11-01	2	2	Purchase	1	0.3333	3600.0
+2026-11-02	1	2	Sign Up	3	1.0	NULL
+2026-11-02	2	2	Purchase	1	0.3333	5400.0
+2026-11-03	1	2	Sign Up	1	1.0	NULL
+2026-11-03	2	2	Purchase	0	0.0	NULL
+
+query ITTIR
+SELECT step, goal, step_label, count, step_conv_ratio FROM mixpanel.main.funnel(7509, '2026-11-01', '2026-11-08', unit := 'week', funnel_window := 7, window_unit := 'day') ORDER BY step;
+----
+1	Sign Up	NULL	4	1.0
+2	$custom_event:12345	Paid	2	0.5
+
+query TTT
+SELECT json_extract_string(query, '$.unit'), json_extract_string(query, '$.length'), json_extract_string(query, '$.length_unit') FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/query/funnels') ORDER BY seq DESC LIMIT 1;
+----
+week	7	day
+
+statement error
+SELECT * FROM mixpanel.main.funnel(1, '2026-11-01', '2026-11-03');
+----
+<REGEX>:.*HTTP 400.*funnel 1 does not exist.*
+
+# ------------------------------------------------------------------- retention
+
+query TIIIR
+SELECT cohort_date, cohort_size, period, retained, round(retention_rate, 4) FROM mixpanel.main.retention('2026-11-01', '2026-11-03', born_event := 'Sign Up', interval_count := 2) ORDER BY cohort_date, period;
+----
+2026-11-01	2	0	2	1.0
+2026-11-01	2	1	1	0.5
+2026-11-01	2	2	1	0.5
+2026-11-02	3	0	3	1.0
+2026-11-02	3	1	1	0.3333
+2026-11-02	3	2	0	0.0
+2026-11-03	1	0	1	1.0
+2026-11-03	1	1	0	0.0
+2026-11-03	1	2	0	0.0
+
+query TIII
+SELECT cohort_date, cohort_size, period, retained FROM mixpanel.main.retention('2026-11-01', '2026-11-08', born_event := 'Sign Up', unit := 'week', interval_count := 1) ORDER BY period;
+----
+2026-11-02	6	0	6
+2026-11-02	6	1	2
+
+statement error
+SELECT * FROM mixpanel.main.retention('2026-11-01', '2026-11-03');
+----
+<REGEX>:.*born_event.*required.*
+
+# -------------------------------------------------- top events and properties
+
+# The first events/top request answers 429 (Retry-After: 1); the retry succeeds.
+query TIR
+SELECT event, amount, percent_change FROM mixpanel.main.top_events() ORDER BY amount DESC;
+----
+Page View	42	0.25
+Sign Up	17	-0.1
+Purchase	5	0.0
+
+query I
+SELECT count(*) FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/query/events/top');
+----
+2
+
+query T
+SELECT event FROM mixpanel.main.top_events(max_events := 1);
+----
+Page View
+
+query IT
+SELECT rank, event_name FROM mixpanel.main.event_names() ORDER BY rank;
+----
+1	Sign Up
+2	Page View
+3	Purchase
+
+# A persistent 429 fails with a message naming Mixpanel's limits instead of hanging.
+statement error
+SELECT * FROM mixpanel.main.event_names(count_type := 'average');
+----
+<REGEX>:.*rate limit exceeded \(HTTP 429\).*60 queries per hour.*
 
 query TI
-SELECT category, count(*) FROM mixpanel.main.fetch_items('{MIXPANEL_MOCK_API}') GROUP BY category ORDER BY category;
+SELECT property_name, count FROM mixpanel.main.top_event_properties('Purchase', max_properties := 3) ORDER BY count DESC, property_name;
 ----
-hardware	8
-service	8
-software	9
+$city	4
+$device_id	4
+$insert_id	4
 
-# The harness runs MIXPANEL_MOCK_API with MOCK_API_FLAKY=1: every page answers
-# 429 + Retry-After once, so every query above also exercised the retry path.
-
-# MIXPANEL_MOCK_API_AUTH requires a bearer token ('test-token'). Every language's
-# fetch_items must put the HTTP status code in its error message.
-statement error
-SELECT count(*) FROM mixpanel.main.fetch_items('{MIXPANEL_MOCK_API_AUTH}');
+query IT
+SELECT rank, value FROM mixpanel.main.event_property_values('Purchase', 'plan') ORDER BY rank;
 ----
-401
+1	pro
+2	basic
 
-statement ok
-CREATE SECRET mixpanel_api_test (TYPE mixpanel_api, TOKEN 'test-token');
+# ----------------------------------------------------------- users and cohorts
+
+# Engage pages of 2: page 0 issues a session_id, pages 1-3 carry it.
+query TTTT
+SELECT distinct_id, email, name, created_at FROM mixpanel.main.profiles() ORDER BY distinct_id;
+----
+12345	kat@example.com	Kat Johnson	2026-11-02 10:30:00+00
+u1	ada@example.com	Ada Lovelace	2026-01-05 10:00:00+00
+u2	grace@example.com	Grace Hopper	2026-02-10 08:30:00+00
+u3	alan@example.com	Alan Turing	2026-03-15 14:00:00+00
+u6	margaret@example.com	Margaret H. Hamilton	2026-11-02 15:00:00+00
+u7	radia@example.com	Radia Perlman	2026-11-03 20:00:00+00
+
+query III
+SELECT count(*), count(*) FILTER (WHERE json_extract_string(form, '$.session_id') IS NOT NULL), max(json_extract_string(form, '$.page')::INT) FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/query/engage') WHERE form NOT LIKE '%where%' AND form NOT LIKE '%distinct%' AND form NOT LIKE '%cohort%';
+----
+4	3	3
+
+query TT
+SELECT email, properties->>'plan' FROM mixpanel.main.profiles(where_expr := 'properties["plan"] == "pro"') ORDER BY email;
+----
+ada@example.com	pro
+alan@example.com	pro
+
+# distinct_id IN -> distinct_ids; email = -> where.
+query TT
+SELECT distinct_id, country_code FROM mixpanel.main.profiles() WHERE distinct_id IN ('12345', 'u2') ORDER BY 1;
+----
+12345	CA
+u2	GB
+
+query T
+SELECT json_extract_string(form, '$.distinct_ids') FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/query/engage') WHERE form LIKE '%distinct_ids%' ORDER BY seq LIMIT 1;
+----
+["12345","u2"]
+
+query TTT
+SELECT distinct_id, phone, region FROM mixpanel.main.profiles() WHERE email = 'ada@example.com';
+----
+u1	+1 415 555 0100	California
+
+query T
+SELECT json_extract_string(form, '$.where') FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/query/engage') ORDER BY seq DESC LIMIT 1;
+----
+string(properties["$email"]) == "ada@example.com"
+
+# Cohort members, including one without a profile.
+query TT
+SELECT distinct_id, email FROM mixpanel.main.profiles(cohort_id := 2000) ORDER BY distinct_id;
+----
+12345	kat@example.com
+ghost-1	NULL
+u2	grace@example.com
+
+query IITITT
+SELECT id, count, name, project_id, is_visible, created_at FROM mixpanel.main.cohorts ORDER BY id;
+----
+1000	2	Pro users	4242	true	2026-10-01 09:00:00+00
+2000	3	Churn risk	4242	false	2026-10-15 16:45:10+00
+
+query TTIT
+SELECT tool, cohort_id, size, updated_at FROM mixpanel.unified.cohorts ORDER BY size DESC;
+----
+mixpanel	2000	3	NULL
+mixpanel	1000	2	NULL
+
+query TTTTT
+SELECT tool, user_id, email, country, last_seen_at FROM mixpanel.unified.users WHERE country = 'US' ORDER BY user_id;
+----
+mixpanel	u1	ada@example.com	US	2026-11-03 12:00:00+00
+mixpanel	u3	alan@example.com	US	2026-11-03 09:00:00+00
+mixpanel	u7	radia@example.com	US	2026-11-03 20:00:00+00
+
+query T
+SELECT json_extract_string(form, '$.where') FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/query/engage') ORDER BY seq DESC LIMIT 1;
+----
+string(properties["$country_code"]) == "US"
+
+query T
+SELECT user_id FROM mixpanel.unified.users WHERE user_id = 'u6';
+----
+u6
+
+query T
+SELECT json_extract_string(form, '$.distinct_id') FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/query/engage') ORDER BY seq DESC LIMIT 1;
+----
+u6
+
+# ------------------------------------------------------- Lexicon and annotations
+
+query TTTTTTI
+SELECT entity_type, name, display_name, is_hidden, is_dropped, tags::VARCHAR, property_count FROM mixpanel.main.schemas ORDER BY entity_type, name;
+----
+event	Debug Ping	NULL	true	true	[internal]	0
+event	Page View	NULL	true	false	[]	0
+event	Purchase	Purchase	false	false	[revenue, ecommerce]	3
+event	Sign Up	Sign Up	false	false	[acquisition]	2
+profile	$user	NULL	false	false	NULL	3
+
+# entity_type = pushes down to /schemas/{entityType}.
+query T
+SELECT name FROM mixpanel.main.schemas WHERE entity_type = 'profile';
+----
+$user
 
 query I
-SELECT count(*) FROM mixpanel.main.fetch_items('{MIXPANEL_MOCK_API_AUTH}', page_size := 25);
+SELECT count(*) FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/app/projects/4242/schemas/profile');
 ----
-25
+1
 
-# Several pages: the token must survive between batches (over HTTP each batch is a
-# separate request, so a token kept only in memory is lost after page 1).
+query TTTTT
+SELECT entity_name, property_name, data_type, is_required, enum_values::VARCHAR FROM mixpanel.main.schema_properties WHERE entity_type = 'event' ORDER BY ALL;
+----
+Purchase	items	array	false	NULL
+Purchase	plan	string	false	NULL
+Purchase	revenue	number	true	NULL
+Sign Up	campaign	string	false	NULL
+Sign Up	plan	string	true	[free, basic, pro]
+
+query TTTTT
+SELECT tool, event_name, is_hidden, is_active, tags::VARCHAR FROM mixpanel.unified.event_definitions ORDER BY event_name;
+----
+mixpanel	Debug Ping	true	false	[internal]
+mixpanel	Page View	true	true	[]
+mixpanel	Purchase	false	true	[revenue, ecommerce]
+mixpanel	Sign Up	false	true	[acquisition]
+
+query TTTTT
+SELECT scope, event_name, property_name, data_type, is_array FROM mixpanel.unified.property_definitions ORDER BY ALL;
+----
+event	Purchase	items	array	true
+event	Purchase	plan	string	false
+event	Purchase	revenue	number	false
+event	Sign Up	campaign	string	false
+event	Sign Up	plan	string	false
+user	NULL	$email	string	false
+user	NULL	plan	string	false
+user	NULL	seats	integer	false
+
+query T
+SELECT property_name FROM mixpanel.unified.property_definitions WHERE scope = 'user' AND is_hidden;
+----
+seats
+
 query I
-SELECT count(*) FROM mixpanel.main.fetch_items('{MIXPANEL_MOCK_API_AUTH}', page_size := 7);
+SELECT count(*) FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/app/projects/4242/schemas/profile');
 ----
-25
+2
 
-statement ok
-DROP SECRET mixpanel_api_test;
-
-# base_url must be http(s).
-statement error
-SELECT * FROM mixpanel.main.fetch_items('ftp://example.com');
+query ITTTT
+SELECT id, annotation_time, description, user_name, tags::VARCHAR FROM mixpanel.main.annotations WHERE annotation_time >= TIMESTAMPTZ '2026-11-01' ORDER BY id;
 ----
-<REGEX>:.*
+12	2026-11-01 09:00:00+00	Fall campaign launched	Grace Hopper	[Marketing]
+13	2026-11-03 15:30:00+00	Checkout incident	NULL	[]
 
-# page_size is a named argument constrained to [1, 1000].
-statement error
-SELECT * FROM mixpanel.main.fetch_items('{MIXPANEL_MOCK_API}', page_size := 0);
+query TT
+SELECT json_extract_string(query, '$.fromDate'), json_extract_string(query, '$.toDate') FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests?path=/api/app/projects/4242/annotations') ORDER BY seq DESC LIMIT 1;
 ----
-<REGEX>:.*
+2026-11-01	NULL
 
-statement error
-SELECT * FROM mixpanel.main.fetch_items('{MIXPANEL_MOCK_API}', page_size := 5000);
+query I
+SELECT count(*) FROM mixpanel.main.annotations;
 ----
-<REGEX>:.*
+3
+
+# ------------------------------------------------------------------- discovery
+
+query I
+SELECT count(*) FROM duckdb_functions() WHERE database_name = 'mixpanel' AND function_name IN ('events', 'segmentation', 'funnel', 'retention', 'top_events', 'event_names', 'top_event_properties', 'event_property_values', 'profiles');
+----
+9
+
+query T
+SELECT string_agg(schema_name || '.' || table_name, ',' ORDER BY schema_name, table_name) FROM duckdb_tables() WHERE database_name = 'mixpanel';
+----
+main.annotations,main.cohorts,main.funnels,main.schema_properties,main.schemas,unified.cohorts,unified.event_definitions,unified.events,unified.property_definitions,unified.users
+
+# Every request carried a credential and the project id (9999 is the 403 test above).
+query I
+SELECT count(*) FROM read_json('{MIXPANEL_FIXTURE_URL}/__requests') WHERE path NOT LIKE '/api/app/%' AND "user" <> '' AND json_extract_string(query, '$.project_id') NOT IN ('4242', '9999');
+----
+0

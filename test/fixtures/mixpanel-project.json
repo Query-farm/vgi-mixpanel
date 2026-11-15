@@ -1,0 +1,855 @@
+{
+ "project_id": 4242,
+ "service_account": {
+  "username": "sa.test",
+  "secret": "test-secret"
+ },
+ "api_secret": "legacy-secret",
+ "engage_page_size": 2,
+ "events": [
+  {
+   "event": "Sign Up",
+   "time": "2026-11-01T09:00:00Z",
+   "properties": {
+    "distinct_id": "u1",
+    "$insert_id": "e01",
+    "$os": "iOS",
+    "mp_lib": "iphone",
+    "$lib_version": "4.3.0",
+    "$model": "iPhone15,2",
+    "mp_country_code": "US",
+    "$city": "San Francisco",
+    "$region": "California",
+    "$app_version_string": "3.1.0",
+    "$device_id": "D1",
+    "$user_id": "u1",
+    "plan": "free"
+   }
+  },
+  {
+   "event": "Page View",
+   "time": "2026-11-01T09:05:00Z",
+   "properties": {
+    "distinct_id": "u3",
+    "$insert_id": "e02",
+    "$os": "Mac OS X",
+    "mp_lib": "web",
+    "$lib_version": "2.55.0",
+    "$browser": "Chrome",
+    "mp_country_code": "US",
+    "$city": "New York",
+    "$region": "New York",
+    "$current_url": "https://example.com/",
+    "$device_id": "D3",
+    "$user_id": "u3"
+   }
+  },
+  {
+   "event": "Sign Up",
+   "time": "2026-11-01T12:00:00Z",
+   "properties": {
+    "distinct_id": "u2",
+    "$insert_id": "e03",
+    "$os": "Android",
+    "mp_lib": "android",
+    "$lib_version": "7.5.0",
+    "mp_country_code": "GB",
+    "$city": "London",
+    "$app_version_string": "3.0.2",
+    "$device_id": "D2",
+    "$user_id": "u2",
+    "plan": "free"
+   }
+  },
+  {
+   "event": "Purchase",
+   "time": "2026-11-01T13:00:00Z",
+   "properties": {
+    "distinct_id": "u1",
+    "$insert_id": "e04",
+    "$os": "iOS",
+    "mp_lib": "iphone",
+    "$lib_version": "4.3.0",
+    "$model": "iPhone15,2",
+    "mp_country_code": "US",
+    "$city": "San Francisco",
+    "$app_version_string": "3.1.0",
+    "$device_id": "D1",
+    "$user_id": "u1",
+    "plan": "pro",
+    "revenue": 49.0
+   }
+  },
+  {
+   "event": "Sign Up",
+   "time": "2026-11-02T08:00:00Z",
+   "properties": {
+    "distinct_id": "u3",
+    "$insert_id": "e05",
+    "$os": "Mac OS X",
+    "mp_lib": "web",
+    "$lib_version": "2.55.0",
+    "$browser": "Chrome",
+    "mp_country_code": "US",
+    "$city": "New York",
+    "$device_id": "D3",
+    "$user_id": "u3",
+    "plan": "free"
+   }
+  },
+  {
+   "event": "Sign Up",
+   "time": "2026-11-02T10:30:00Z",
+   "properties": {
+    "distinct_id": 12345,
+    "$insert_id": "e06",
+    "$os": "iOS",
+    "mp_lib": "iphone",
+    "$lib_version": "4.3.0",
+    "$model": "iPhone15,2",
+    "mp_country_code": "CA",
+    "$city": "Toronto",
+    "$app_version_string": "3.1.0",
+    "$device_id": "D5",
+    "plan": "free"
+   }
+  },
+  {
+   "event": "Purchase",
+   "time": "2026-11-02T11:00:00Z",
+   "properties": {
+    "distinct_id": "u2",
+    "$insert_id": "e07",
+    "$os": "Android",
+    "mp_lib": "android",
+    "$lib_version": "7.5.0",
+    "mp_country_code": "GB",
+    "$city": "London",
+    "$app_version_string": "3.0.2",
+    "$device_id": "D2",
+    "$user_id": "u2",
+    "plan": "basic",
+    "revenue": 19.5
+   }
+  },
+  {
+   "event": "Page View",
+   "time": "2026-11-02T23:59:59Z",
+   "properties": {
+    "distinct_id": "$device:D4",
+    "$insert_id": "e08",
+    "$os": "Windows",
+    "mp_lib": "web",
+    "$browser": "Firefox",
+    "$device_id": "D4",
+    "$current_url": "https://example.com/pricing",
+    "mp_country_code": "US"
+   }
+  },
+  {
+   "event": "Sign Up",
+   "time": "2026-11-02T15:00:00Z",
+   "properties": {
+    "distinct_id": "u6",
+    "$insert_id": "e09",
+    "$os": "Android",
+    "mp_lib": "android",
+    "$lib_version": "7.5.0",
+    "mp_country_code": "DE",
+    "$city": "Berlin",
+    "$app_version_string": "3.0.2",
+    "$device_id": "D6",
+    "$user_id": "u6",
+    "plan": "free"
+   }
+  },
+  {
+   "event": "Purchase",
+   "time": "2026-11-03T09:00:00Z",
+   "properties": {
+    "distinct_id": "u3",
+    "$insert_id": "e10",
+    "$os": "Mac OS X",
+    "mp_lib": "web",
+    "$lib_version": "2.55.0",
+    "$browser": "Chrome",
+    "mp_country_code": "US",
+    "$city": "New York",
+    "$device_id": "D3",
+    "$user_id": "u3",
+    "plan": "pro",
+    "revenue": 99.0
+   }
+  },
+  {
+   "event": "Page View",
+   "time": "2026-11-03T10:00:00Z",
+   "properties": {
+    "distinct_id": "u1",
+    "$insert_id": "e11",
+    "$os": "iOS",
+    "mp_lib": "iphone",
+    "$lib_version": "4.3.0",
+    "$model": "iPhone15,2",
+    "mp_country_code": "US",
+    "$city": "San Francisco",
+    "$app_version_string": "3.1.0",
+    "$device_id": "D1",
+    "$user_id": "u1",
+    "$session_id": "s-1"
+   }
+  },
+  {
+   "event": "Purchase",
+   "time": "2026-11-03T12:00:00Z",
+   "properties": {
+    "distinct_id": "u1",
+    "$insert_id": "e12",
+    "$os": "iOS",
+    "mp_lib": "iphone",
+    "$lib_version": "4.3.0",
+    "$model": "iPhone15,2",
+    "mp_country_code": "US",
+    "$city": "San Francisco",
+    "$app_version_string": "3.1.0",
+    "$device_id": "D1",
+    "$user_id": "u1",
+    "plan": "pro",
+    "revenue": 49.0
+   }
+  },
+  {
+   "event": "Sign Up",
+   "time": "2026-11-03T20:00:00Z",
+   "properties": {
+    "distinct_id": "u7",
+    "$insert_id": "e13",
+    "$os": "iOS",
+    "mp_lib": "iphone",
+    "$lib_version": "4.3.0",
+    "$model": "iPhone15,2",
+    "mp_country_code": "US",
+    "$city": "O\"Fallon",
+    "$app_version_string": "3.1.0",
+    "$device_id": "D7",
+    "$user_id": "u7",
+    "plan": "free",
+    "campaign": "Fall \"Promo\" \\ 2026"
+   }
+  },
+  {
+   "event": "Page View",
+   "time": "2026-10-31T23:30:00Z",
+   "properties": {
+    "distinct_id": "u2",
+    "$insert_id": "e14",
+    "$os": "Android",
+    "mp_lib": "android",
+    "$lib_version": "7.5.0",
+    "mp_country_code": "GB",
+    "$city": "London",
+    "$device_id": "D2",
+    "$user_id": "u2"
+   }
+  },
+  {
+   "event": "Sign Up",
+   "time": "2026-11-04T00:30:00Z",
+   "properties": {
+    "distinct_id": "u8",
+    "$insert_id": "e15",
+    "$os": "Mac OS X",
+    "mp_lib": "web",
+    "$lib_version": "2.55.0",
+    "$browser": "Chrome",
+    "mp_country_code": "US",
+    "$device_id": "D8",
+    "$user_id": "u8",
+    "plan": "free"
+   }
+  }
+ ],
+ "recent_events": [
+  {
+   "event": "Page View",
+   "days_ago": 0,
+   "hour": 0,
+   "properties": {
+    "distinct_id": "u1",
+    "$insert_id": "r1",
+    "$os": "iOS",
+    "mp_lib": "iphone",
+    "$lib_version": "4.3.0",
+    "$model": "iPhone15,2",
+    "mp_country_code": "US"
+   }
+  },
+  {
+   "event": "Sign Up",
+   "days_ago": 1,
+   "hour": 6,
+   "properties": {
+    "distinct_id": "u9",
+    "$insert_id": "r2",
+    "$os": "Android",
+    "mp_lib": "android",
+    "$lib_version": "7.5.0",
+    "mp_country_code": "BR"
+   }
+  },
+  {
+   "event": "Page View",
+   "days_ago": 3,
+   "hour": 12,
+   "properties": {
+    "distinct_id": "u3",
+    "$insert_id": "r3",
+    "$os": "Mac OS X",
+    "mp_lib": "web",
+    "$lib_version": "2.55.0",
+    "$browser": "Chrome",
+    "mp_country_code": "US"
+   }
+  },
+  {
+   "event": "Page View",
+   "days_ago": 10,
+   "hour": 12,
+   "properties": {
+    "distinct_id": "u2",
+    "$insert_id": "r4",
+    "$os": "Android",
+    "mp_lib": "android",
+    "$lib_version": "7.5.0",
+    "mp_country_code": "GB"
+   }
+  }
+ ],
+ "profiles": [
+  {
+   "$distinct_id": "u1",
+   "$properties": {
+    "$first_name": "Ada",
+    "$last_name": "Lovelace",
+    "$email": "ada@example.com",
+    "plan": "pro",
+    "$country_code": "US",
+    "$city": "San Francisco",
+    "$created": "2026-01-05T10:00:00",
+    "$last_seen": "2026-11-03T12:00:00",
+    "$os": "iOS",
+    "$timezone": "America/Los_Angeles",
+    "$region": "California",
+    "$phone": "+1 415 555 0100"
+   }
+  },
+  {
+   "$distinct_id": "u2",
+   "$properties": {
+    "$first_name": "Grace",
+    "$last_name": "Hopper",
+    "$email": "grace@example.com",
+    "plan": "basic",
+    "$country_code": "GB",
+    "$city": "London",
+    "$created": "2026-02-10T08:30:00",
+    "$last_seen": "2026-11-02T11:00:00",
+    "$os": "Android",
+    "$timezone": "Europe/London"
+   }
+  },
+  {
+   "$distinct_id": "u3",
+   "$properties": {
+    "$first_name": "Alan",
+    "$last_name": "Turing",
+    "$email": "alan@example.com",
+    "plan": "pro",
+    "$country_code": "US",
+    "$city": "New York",
+    "$created": "2026-03-15T14:00:00",
+    "$last_seen": "2026-11-03T09:00:00",
+    "$os": "Mac OS X",
+    "$timezone": "America/New_York",
+    "$region": "New York"
+   }
+  },
+  {
+   "$distinct_id": 12345,
+   "$properties": {
+    "$first_name": "Kat",
+    "$last_name": "Johnson",
+    "$email": "kat@example.com",
+    "plan": "free",
+    "$country_code": "CA",
+    "$city": "Toronto",
+    "$created": "2026-11-02T10:30:00",
+    "$last_seen": "2026-11-02T10:30:00",
+    "$os": "iOS",
+    "$timezone": "America/Toronto"
+   }
+  },
+  {
+   "$distinct_id": "u6",
+   "$properties": {
+    "$first_name": "Margaret",
+    "$last_name": "Hamilton",
+    "$email": "margaret@example.com",
+    "plan": "free",
+    "$country_code": "DE",
+    "$city": "Berlin",
+    "$created": "2026-11-02T15:00:00",
+    "$last_seen": "2026-11-02T15:00:00",
+    "$os": "Android",
+    "$timezone": "Europe/Berlin",
+    "$name": "Margaret H. Hamilton"
+   }
+  },
+  {
+   "$distinct_id": "u7",
+   "$properties": {
+    "$first_name": "Radia",
+    "$last_name": "Perlman",
+    "$email": "radia@example.com",
+    "plan": "free",
+    "$country_code": "US",
+    "$city": "O\"Fallon",
+    "$created": "2026-11-03T20:00:00",
+    "$last_seen": "2026-11-03T20:00:00",
+    "$os": "iOS",
+    "$timezone": "America/Chicago"
+   }
+  }
+ ],
+ "cohorts": [
+  {
+   "count": 2,
+   "is_visible": 1,
+   "description": "Users on the pro plan.",
+   "created": "2026-10-01 09:00:00",
+   "project_id": 4242,
+   "id": 1000,
+   "name": "Pro users",
+   "members": [
+    "u1",
+    "u3"
+   ]
+  },
+  {
+   "count": 3,
+   "is_visible": 0,
+   "description": "No purchase in 30 days.",
+   "created": "2026-10-15 16:45:10",
+   "project_id": 4242,
+   "id": 2000,
+   "name": "Churn risk",
+   "members": [
+    "u2",
+    12345,
+    "ghost-1"
+   ]
+  }
+ ],
+ "funnels": {
+  "list": [
+   {
+    "funnel_id": 7509,
+    "name": "Signup funnel"
+   },
+   {
+    "funnel_id": 7510,
+    "name": "Checkout"
+   }
+  ],
+  "reports": {
+   "7509": {
+    "day": {
+     "2026-11-01": [
+      {
+       "count": 3,
+       "avg_time": null,
+       "avg_time_from_start": null,
+       "step_conv_ratio": 1,
+       "goal": "Sign Up",
+       "overall_conv_ratio": 1,
+       "event": "Sign Up"
+      },
+      {
+       "count": 1,
+       "avg_time": 3600,
+       "avg_time_from_start": 3600,
+       "step_conv_ratio": 0.3333333333333333,
+       "goal": "Purchase",
+       "overall_conv_ratio": 0.3333333333333333,
+       "event": "Purchase"
+      }
+     ],
+     "2026-11-02": [
+      {
+       "count": 3,
+       "avg_time": null,
+       "avg_time_from_start": null,
+       "step_conv_ratio": 1,
+       "goal": "Sign Up",
+       "overall_conv_ratio": 1,
+       "event": "Sign Up"
+      },
+      {
+       "count": 1,
+       "avg_time": 5400,
+       "avg_time_from_start": 5400,
+       "step_conv_ratio": 0.3333333333333333,
+       "goal": "Purchase",
+       "overall_conv_ratio": 0.3333333333333333,
+       "event": "Purchase"
+      }
+     ],
+     "2026-11-03": [
+      {
+       "count": 1,
+       "avg_time": null,
+       "avg_time_from_start": null,
+       "step_conv_ratio": 1,
+       "goal": "Sign Up",
+       "overall_conv_ratio": 1,
+       "event": "Sign Up"
+      },
+      {
+       "count": 0,
+       "avg_time": null,
+       "avg_time_from_start": null,
+       "step_conv_ratio": 0,
+       "goal": "Purchase",
+       "overall_conv_ratio": 0,
+       "event": "Purchase"
+      }
+     ]
+    },
+    "week": {
+     "2026-11-02": [
+      {
+       "count": 4,
+       "avg_time": null,
+       "avg_time_from_start": null,
+       "step_conv_ratio": 1,
+       "goal": "Sign Up",
+       "overall_conv_ratio": 1,
+       "event": "Sign Up"
+      },
+      {
+       "count": 2,
+       "avg_time": 4800,
+       "avg_time_from_start": 4800,
+       "step_conv_ratio": 0.5,
+       "goal": "$custom_event:12345",
+       "step_label": "Paid",
+       "custom_event": true,
+       "custom_event_id": 12345,
+       "overall_conv_ratio": 0.5,
+       "event": "$custom_event:12345"
+      }
+     ]
+    }
+   }
+  }
+ },
+ "retention": {
+  "Sign Up": {
+   "day": {
+    "2026-11-01": {
+     "counts": [
+      2,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "first": 2
+    },
+    "2026-11-02": {
+     "counts": [
+      3,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "first": 3
+    },
+    "2026-11-03": {
+     "counts": [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "first": 1
+    }
+   },
+   "week": {
+    "2026-11-02": {
+     "counts": [
+      6,
+      2,
+      0
+     ],
+     "first": 6
+    }
+   }
+  }
+ },
+ "top_events": [
+  {
+   "amount": 42,
+   "event": "Page View",
+   "percent_change": 0.25
+  },
+  {
+   "amount": 17,
+   "event": "Sign Up",
+   "percent_change": -0.1
+  },
+  {
+   "amount": 5,
+   "event": "Purchase",
+   "percent_change": 0.0
+  }
+ ],
+ "schemas": [
+  {
+   "entityType": "event",
+   "name": "Sign Up",
+   "schemaJson": {
+    "description": "A new account was created.",
+    "properties": {
+     "plan": {
+      "type": "string",
+      "description": "Plan chosen at sign-up.",
+      "enum": [
+       "free",
+       "basic",
+       "pro"
+      ],
+      "metadata": {
+       "com.mixpanel": {
+        "displayName": "Plan",
+        "hidden": false,
+        "dropped": false
+       }
+      }
+     },
+     "campaign": {
+      "type": "string",
+      "description": "Marketing campaign.",
+      "metadata": {
+       "com.mixpanel": {
+        "hidden": true,
+        "dropped": false
+       }
+      }
+     }
+    },
+    "required": [
+     "plan"
+    ],
+    "metadata": {
+     "com.mixpanel": {
+      "displayName": "Sign Up",
+      "tags": [
+       "acquisition"
+      ],
+      "hidden": false,
+      "dropped": false,
+      "contacts": [
+       "growth@example.com"
+      ],
+      "teamContacts": [
+       "Growth"
+      ]
+     }
+    }
+   }
+  },
+  {
+   "entityType": "event",
+   "name": "Purchase",
+   "schemaJson": {
+    "description": "An order was paid.",
+    "properties": {
+     "plan": {
+      "type": "string",
+      "description": "Plan purchased.",
+      "metadata": {
+       "com.mixpanel": {
+        "hidden": false,
+        "dropped": false
+       }
+      }
+     },
+     "revenue": {
+      "type": "number",
+      "description": "Order value in USD.",
+      "metadata": {
+       "com.mixpanel": {
+        "displayName": "Revenue",
+        "hidden": false,
+        "dropped": false
+       }
+      }
+     },
+     "items": {
+      "type": "array",
+      "description": "Line items.",
+      "metadata": {
+       "com.mixpanel": {
+        "hidden": false,
+        "dropped": false
+       }
+      }
+     }
+    },
+    "required": [
+     "revenue"
+    ],
+    "metadata": {
+     "com.mixpanel": {
+      "displayName": "Purchase",
+      "tags": [
+       "revenue",
+       "ecommerce"
+      ],
+      "hidden": false,
+      "dropped": false
+     }
+    }
+   }
+  },
+  {
+   "entityType": "event",
+   "name": "Page View",
+   "schemaJson": {
+    "description": "A page was viewed.",
+    "properties": {},
+    "metadata": {
+     "com.mixpanel": {
+      "tags": [],
+      "hidden": true,
+      "dropped": false
+     }
+    }
+   }
+  },
+  {
+   "entityType": "event",
+   "name": "Debug Ping",
+   "schemaJson": {
+    "description": "Internal heartbeat.",
+    "properties": {},
+    "metadata": {
+     "com.mixpanel": {
+      "tags": [
+       "internal"
+      ],
+      "hidden": true,
+      "dropped": true
+     }
+    }
+   }
+  },
+  {
+   "entityType": "profile",
+   "name": "$user",
+   "schemaJson": {
+    "description": "User profile.",
+    "properties": {
+     "plan": {
+      "type": "string",
+      "description": "Current plan.",
+      "metadata": {
+       "com.mixpanel": {
+        "hidden": false
+       }
+      }
+     },
+     "$email": {
+      "type": "string",
+      "description": "Email address.",
+      "metadata": {
+       "com.mixpanel": {
+        "displayName": "Email",
+        "hidden": false
+       }
+      }
+     },
+     "seats": {
+      "type": [
+       "integer",
+       "null"
+      ],
+      "description": "Licensed seats.",
+      "metadata": {
+       "com.mixpanel": {
+        "hidden": true
+       }
+      }
+     }
+    },
+    "metadata": {
+     "com.mixpanel": {
+      "hidden": false
+     }
+    }
+   }
+  }
+ ],
+ "annotations": [
+  {
+   "date": "2026-10-20 00:00:00",
+   "description": "v3.0 released",
+   "id": 11,
+   "user": {
+    "id": 501,
+    "first_name": "Ada",
+    "last_name": "Lovelace"
+   },
+   "tags": [
+    {
+     "id": 91,
+     "name": "Release"
+    }
+   ]
+  },
+  {
+   "date": "2026-11-01 09:00:00",
+   "description": "Fall campaign launched",
+   "id": 12,
+   "user": {
+    "id": 502,
+    "first_name": "Grace",
+    "last_name": "Hopper"
+   },
+   "tags": [
+    {
+     "id": 92,
+     "name": "Marketing"
+    }
+   ]
+  },
+  {
+   "date": "2026-11-03 15:30:00",
+   "description": "Checkout incident",
+   "id": 13,
+   "tags": []
+  }
+ ]
+}
