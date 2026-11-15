@@ -15,6 +15,6 @@
     ".github/dependabot.yml"
   ],
   "name": "mixpanel",
-  "repo": "your-org/vgi-mixpanel",
+  "repo": "Query-farm/vgi-mixpanel",
   "initialized": "2026-11-15"
 }

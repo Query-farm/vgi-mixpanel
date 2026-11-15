@@ -2,7 +2,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "A VGI worker for DuckDB, generated from the Query.Farm VGI starter template.",
+  "description": "Mixpanel product analytics as SQL in DuckDB: raw events, segmentation, funnels, retention, user profiles, cohorts and the Lexicon (a Query.Farm VGI worker).",
   "license": "0BSD",
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -95,8 +95,12 @@ jobs:
           location: ${{ github.workspace }}/bin/vgi-mixpanel-worker
           # Set in vgi-lint.toml, so local runs and CI agree.
           fail-on: ${{ steps.lintcfg.outputs.fail_on }}
-          # Set to false if your examples need real credentials or network access.
-          execute: true
+          # Every object (mixpanel.main.events, segmentation, funnel, retention, profiles,
+          # cohorts, schemas, annotations and the mixpanel.unified tables) needs a `mixpanel`
+          # secret (service account USERNAME + SECRET, PROJECT_ID, REGION) for a live Mixpanel
+          # project, which CI does not have. The SQL tests cover behaviour offline against the
+          # replay server in test/mock_api.
+          execute: "false"
 
   docker:
     name: Docker image smoke test

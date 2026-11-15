@@ -25,16 +25,17 @@ src/
   worker.ts        # entry point: serves the catalog over stdio, --unix or --http
   catalog.ts       # assembles the catalog; add new functions to FUNCTIONS
   meta.ts          # catalog/schema metadata + helpers (objectTags, column)
-  greet.ts         # scalar example (overloads, const param with choices)
-  sequence.ts      # table function example (named args, streaming state)
-  fetch_items.ts   # REST API table function (pagination, retries, secrets)
+  mp/client.ts     # mixpanel secret, region hosts, Basic auth, rate limits, retries
+  mp/pushdown.ts   # pushed WHERE -> Mixpanel parameters and `where` expressions
+  mp/table.ts      # typed columns + the request-per-batch table factory (Engage paging)
+  mp/export.ts     # raw event export: NDJSON streaming, day-chunk cursor, resume
+  mp/resources.ts  # every function and table (main + unified)
   cli.ts           # flag parsing: stdio / --unix / --http (PORT:<n>, /health)
   log.ts           # stderr logger
-bin/               # vgi-mixpanel-worker (what DuckDB launches) and run-recipe
-tests/             # bun unit tests (worker subprocess + mock API)
+bin/               # vgi-mixpanel-worker (what DuckDB launches)
+tests/             # bun unit tests (pure logic + the replay server)
 test/sql/          # sqllogictest files run through DuckDB
-test/mock_api/     # offline mock of the REST API used by tests
-examples/          # recipes: pushdown, caching, catalog tables, aggregates, COPY …
+test/mock_api/     # strict offline Mixpanel replay server (fixtures in test/fixtures)
 ci/                # integration harness used by `make test-sql` and CI
 scripts/           # vgi_template.py (init / template-diff)
 vgi-agent-tests.yaml  # private graders for the agent test tasks
