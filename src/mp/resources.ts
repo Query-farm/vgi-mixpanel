@@ -25,7 +25,6 @@ import { andJoin, type Constraint, eqStrings, eqValues, timeBounds, whereParts }
 import {
   asNum,
   C,
-  type Col,
   DEFAULT_ROWS,
   dayString,
   defineMpCatalogTable,

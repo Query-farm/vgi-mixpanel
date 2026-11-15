@@ -152,7 +152,7 @@ echo "executed $executed of $total test files over $TRANSPORT ($skipped skipped)
 if [ "$executed" -lt "$MIN_EXECUTED" ]; then
   echo "::error::only $executed test files ran (MIN_EXECUTED=$MIN_EXECUTED)"; rc=1
 fi
-if [ "$HTTP" = "1" ] && ! kill -0 "${PIDS[2]}" 2>/dev/null; then
+if [ "$HTTP" = "1" ] && ! kill -0 "${PIDS[1]}" 2>/dev/null; then
   echo "::error::the HTTP worker died during the run:"; cat "$STAGE/worker.log"; rc=1
 fi
 exit "$rc"
