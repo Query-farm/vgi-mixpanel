@@ -79,20 +79,24 @@ export const CATALOG_COMMENT =
   "Mixpanel product analytics as SQL: raw events, segmentation, funnels, retention, user profiles, cohorts and the Lexicon, read-only.";
 
 export const CATALOG_DOC_LLM =
-  "Read-only SQL access to a Mixpanel project. Raw events stream from the Raw Event Export API " +
-  "(mixpanel.main.events, or mixpanel.unified.events in the shared product-analytics shape); WHERE " +
+  "Read-only SQL access to a Mixpanel project. Raw events stream from the Raw Event Export API; WHERE " +
   "event_time ranges choose the export days, event_name = / IN becomes the export event filter and string " +
   "= / IN on property columns (distinct_id, os, city, country_code, app_version …) becomes a Mixpanel " +
-  "`where` expression, all re-checked exactly. Query API reports return long rows: segmentation (event " +
-  "counts per period, optionally segmented by a property), funnel (per period and step), retention (cohort " +
-  "x period), plus funnels (saved funnel ids), top_events, event_names, top_event_properties and " +
-  "event_property_values. profiles reads user profiles through the Engage API (where_expr, cohort_id, " +
-  "distinct_id pushdown); cohorts, schemas, schema_properties and annotations are tables. The unified " +
-  "schema (events, users, cohorts, event_definitions, property_definitions) uses the same column names as " +
-  "the Amplitude and PostHog workers so rows UNION ALL across tools. Every object needs a `mixpanel` " +
+  "`where` expression, all re-checked exactly. Query API reports (segmentation, funnels, retention, top " +
+  "events and properties) return long rows, one per period, segment or step, rather than Mixpanel's nested " +
+  "JSON. User profiles come from the Engage API with where-expression, cohort and distinct_id pushdown; " +
+  "cohorts, the Lexicon data dictionary and annotations are plain tables. The main schema holds the " +
+  "Mixpanel-native objects; the unified schema uses the same column names as the Amplitude and PostHog " +
+  "workers so rows UNION ALL across tools. Every object needs a `mixpanel` " +
   "secret: service account USERNAME + SECRET (or a project API_SECRET), PROJECT_ID and REGION (us, eu, " +
   "in). Mixpanel allows 60 Query API calls per hour (5 concurrent) and 60 exports per hour, so filter " +
   "early. JQL is deprecated and not exposed. Docs: https://docs.mixpanel.com/reference/overview .";
+
+export const SCHEMA_COMMENT =
+  "Mixpanel-native objects: raw events, Query API reports, user profiles, cohorts, Lexicon schemas and annotations.";
+
+export const UNIFIED_SCHEMA_COMMENT =
+  "Mixpanel events, users, cohorts and definitions in the shape shared with the Amplitude and PostHog workers.";
 
 export const CATALOG_DOC_MD =
   "# Mixpanel\n\n" +
