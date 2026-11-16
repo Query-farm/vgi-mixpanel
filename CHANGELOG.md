@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.1 (2026-11-16)
+
+- Bump @query-farm/vgi to 0.50.1.
+- CI tooling (haybarn-unittest, lint helpers) runs on Python 3.14.
+
 ## 0.1.0 (unreleased)
 
 Initial release: Mixpanel raw event export (streamed, resumable), Query API reports
